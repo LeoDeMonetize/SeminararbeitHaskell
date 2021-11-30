@@ -1,0 +1,26 @@
+Haskell being a functional programming language provides an underlying method of proving statements for its correctness.
+This includes for examples using induction. But this is getting more difficult as the problem itself will increase
+will increase in difficulty. Coming up with testcases and calculating its desired results by hand is also not efficient
+enough, given that humans can make mistakes as well. Quickcheck provides an environment in which one can test code
+probabilistically against randomly generated testcases. Quickcheck generates random testcases and checks them according
+to user-defined properties. An easy example is a sorting algorithm. The input is a list of orderable values and the
+property is the ascending order in the output list. In Haskell it may look similar to this:
+--defining the isSorted property
+isSorted [] = True
+isSorted (x:xs) = fst $ foldl' step (True, x) xs
+  where step (b, x) y = (b && (x <= y), y)
+
+--quicksort
+quicksort1 :: (Ord a) => [a] -> [a]
+quicksort1 [] = []
+quicksort1 (x:xs) =
+  let smallerSorted = quicksort1 [a | a <- xs, a <= x]
+      biggerSorted = quicksort1 [a | a <- xs, a > x]
+  in  smallerSorted ++ [x] ++ biggerSorted
+
+--checking with quickcheck
+test = quickCheck (\s -> isSorted (quicksort1 s))
+
+The output indicates states how many testcases were genrated and whether is was successful or not.
+
+
