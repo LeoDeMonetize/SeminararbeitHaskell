@@ -1,0 +1,100 @@
+.1) From Natural to Syntaxed Language
+Generative frameworks are in its core a daunting task. Most simply try to follow a pattern or a few selected cases.
+One such pattern may be "Read _ Numbers Then do _". These are very limiting in its nature and require a lot of hard coded
+aspects. Defining a purely logical syntax in return results in easy randomization of the parameters and easy extension
+to arbitrary amounts of parameters. Taking a look back at the first example from the prior chapter, we need some inputs xi
+which then need to be sorted. For simplicity we now also want to read in a number n which represents the amount of xi in the
+list. This gives us the following symbols to define: reading numbers, checking for a property (in this case reading only n
+numbers) and outputting a results, most likely a boolean for the correctness.
+
+[hier liste einfügen für die Symbole]
+[triangleright x]: Reading an input and storing it in x. For Inputs we also need to define the possible set out of which the
+ inputs should be, i.e. the natural number.
+[af angle property revangle at]: check whether property is true or false. Proceeds with af in case of false and at in case of
+true.
+[x triangleright]: prints x
+
+An easy example would then be:
+
+[\triangleright a]^{\mathbb{N}} [\triangleright y]^{\mathbb{N}} [(a>b) \triangleright]
+
+Loops are also possible like this:
+(action)^{\rightarrow E} the action is repeated as long as E is false. So for reading n numbers one simply uses the len
+functionas follow:
+
+([\triangleright x]^{\mathbb{N}] \angle len(x_i)==n \revangle E)^{\rightarrow E}
+
+After n numbers have been read, the length of xi is n (Lists start at the index 1!). The complete I/O task would then be:
+
+[\triangleright n]^{\mathbb{N}}([\righttriangle x]^{\mathbb{N}}] \angle len(x_i)==n \revangle E)^{\rightarrow E} [isSorted(x_i) \triangleright]
+
+In this notation there is no difference between single values and lists. In case only a single value is needed we simply write
+the variable's name. Otherwise we index them via an underscore index.
+
+.2) reading values vs. evaluating values.
+
+QuickCheck is suited well for tasks like these. But the IO-Monad makes it difficult to check solution written by students.
+Hence we need do define a slightly altered IO-Monad which makes is possible to use with QuickCheck.
+
+--dataType for representing IO
+data IOrep a
+= GetLine (String -> IOrep a)
+| PutLine String (IOrep a)
+| Return a
+
+--predefining Functor and Applicative Instance so a Monad can be defined
+instance Functor IOrep where
+  fmap = liftM
+
+instance Applicative IOrep where
+  pure  = return
+  (<*>) = ap
+
+--Monad to representing IO
+instance Monad IOrep where
+	GetLine f >>= g = GetLine (\s -> f s >>= g)
+	PutLine s ma >>= g = PutLine s (ma >>= g)
+	Return a >>= g = g a
+	return = Return
+
+Lastly in and output functions are redefined using IOrep:
+
+readLn ::Read a => IOrep a
+readLn = fmap read (GetLine Return)
+
+print :: Show a => a -> IOrep ()
+print x = PutLine (show x) (Return ())
+
+Looking at the definition IOrep it is clear that analyzing the in and outputs are easier to view. We have direct access
+to them by simply patternmatching, which we can use to define a run-Function which puts it in a Trace -a Datatype in which
+we can save what was used as input and output and in what order.
+
+--Datatype to trace the in and outputs
+data Trace = Read String Trace
+	| Write String Trace
+	| Stop
+
+--IOrep to Trace
+runrep ::IOrep () -> [String] -> Trace
+runrep (GetLine f) (x : xs) = Read x (runrep (f x) xs)
+runrep (PutLine s ma) xs = Write s (runrep ma xs)
+runrep (Return ()) [ ] = Stop
+
+
+To summarize; We now have a way of interpreting in and outputs as a modification af an IO-Monad, giving us an easy way
+of building a list of events called a Trace, which then can be used further for checking its correctness.
+
+[https://arxiv.org/pdf/2008.09253v1.pdf]
+
+The complete Framework provides a lot more functionality. To be completely clear, this only covers the most important
+parts of the framework for understanding the ideas behind it. For the rest of this chapter we will look at different
+components and define them generally without much detail about its implementation.
+
+The first component is checking the already defined Trace for its correctness. This is checked against a Spec(ification);
+a set of instructions and properties; which then returns either true, false or error. The Language from .1) provides
+operators for read, write, loop and conditions. For read a "?" is denoted in front of the variable, for write a "!"; this
+makes a Trace easier to write in the following definitions of an accept function:
+
+
+
+

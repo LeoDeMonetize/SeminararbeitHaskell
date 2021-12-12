@@ -21,6 +21,85 @@ quicksort1 (x:xs) =
 --checking with quickcheck
 test = quickCheck (\s -> isSorted (quicksort1 s))
 
-The output indicates states how many testcases were genrated and whether is was successful or not.
+The output states how many testcases were generated and whether is was successful or not. Making an obvious mistake, the
+QuickCheck function will not only tell us, that it is wrong, but also returns a failing testcase.
+--property
+prop::[a]->[a]->bool
+prop xs ys =reverse (xs++ys)==(reverse xs)++(reverse ys)
+
+--checking with quickCheck
+test = quickCheck (\(xs,ys)-> prop xs ys)
+
+The result is then:
+*Main> quickCheck (\(xs,ys)-> prop xs ys )
++++ OK, passed 100 tests.
+
+This makes no sense, because reverse [1,2]=[2,1], but (reverse [1])++(reverse [2]) = [1,2]. But it is obvious
+that the statement may be true, if the length of the list is 1 or 0. So quickCheck may also have just created
+lists with such length. To check that, we simply collect all the lengths of the list we reverse.
+
+prop :: Eq a => [a] -> [a] -> Property
+prop xs ys = collect (length (xs++ys)) $ reverse (xs++ys) == (reverse xs) ++ (reverse ys)
+
+but that again gives us cases with a length greater than 2. So maybe we need to define correct Types
+
+prop :: [Int] -> [Int] -> Property
+prop xs ys = collect (length (xs++ys)) $ reverse (xs++ys) == (reverse xs) ++ (reverse ys)
+
+This immediately returns a wrong testcase for [0] and [1], meaning it is important to infer types correctly for the
+properties. For this purpose we will take a look at Arbitrary, the generating class used by QuickCheck. Arbitrary has
+instances implemented for common types like Int and String, but lacks a general-purpose implementation for custom
+Datatypes, resulting in the need of a custom implementation for those. Building one though is not that hard.
+
+--Define Custom Datatype
+data Example = E Int
+instance Show (Example) where
+   show (E x) = "Example "++(show x)
+
+Here we just have a container storing an Int, so let's write the Arbitrary instance for that
+
+instance Arbitrary Example where
+    arbitrary = do
+     x <- arbitrary
+     return $ (E x)
+
+Since the Type of x is defined in the Datatype itself, there is no need to define it here again. When using this Datatype
+in a property now, the arbitrary instance is called for generating random testcases. This ADT only uses primitve tpyes
+in its definition, making it easy for construction. So in this last section the focus will be on sorted trees and how to
+check for it. A tree is simply defined like this:
+--define Tree
+data Tree  = Node Int Tree Tree | Leaf
+--inOrder
+inOrder::Tree -> [Int]
+inOrder (Leaf a)= []
+inOrder (Node a b c) = (inOrder b)++[a]++(inOrder c)
+
+Next we need to define an insert function that makes it sorted.
+
+insert::Int->Tree->Tree
+insert a (Leaf)= Node a Leaf Leaf
+insert a (Node x l r)
+  | a < x = (Node x (insert a l) r)
+  |otherwise = (Node x l (insert a r))
+
+--insert a whole array:
+insert' xs = foldr insert Leaf xs
+
+A tree is sorted if and only if its inOrder is sorted, meaning we only need to check the following property, but also
+define a way of making trees out of integer-lists, since quickCheck cannot generate ADTs. In this case we can use the insert'
+function and don't need to define a separate function.
+
+--sorted tree property
+property2::[Int]->Bool
+property2 xs = isSorted(inOrder(insert' xs))
+
+And to check simply run quickCheck (\s->property2 s), which returns the desired results. To summarize we have two ways
+of dealing with ADTs; defining a generator using the Arbitrary instance or defining a generating Function using predefined
+types quickCheck can use. There are more ways to deal with them. One is define an Arbitrary instance using the frequency
+operator. This would be useful in case we also wanted define a delete function and checking for sorted after that.
+With the frequency operator you can define not only a list of function it should apply before checking a property but also
+their ratio to one another, i.e. inserting twice as many elements as deleting them. Since this is more advanced and not
+needed to know for the following chapter, I redirect you to this paper.
+
 
 
